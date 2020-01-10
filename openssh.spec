@@ -69,13 +69,13 @@
 %endif
 
 %define openssh_ver 5.3p1
-%define openssh_rel 117
+%define openssh_rel 118
 %define pam_ssh_agent_ver 0.9.3
 
 Summary: An open source implementation of SSH protocol versions 1 and 2
 Name: openssh
 Version: %{openssh_ver}
-Release: %{openssh_rel}%{?dist}%{?rescue_rel}
+Release: %{openssh_rel}.1%{?dist}%{?rescue_rel}
 URL: http://www.openssh.com/portable.html
 #URL1: http://pamsshauth.sourceforge.net
 #Source0: ftp://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-%{version}.tar.gz
@@ -268,6 +268,8 @@ Patch158: openssh-5.3p1-man-allowGroups.patch
 Patch159: openssh-5.3p1-fallback-x11-untrusted.patch
 # CVE-2016-3115: missing sanitisation of input for X11 forwarding (#1316829)
 Patch161: openssh-5.3p1-CVE-2016-3115.patch
+# ssh-copy-id: SunOS does not understand ~ (#1327547)
+Patch162: openssh-5.3p1-ssh-copy-id-tilde.patch
 
 License: BSD
 Group: Applications/Internet
@@ -518,6 +520,7 @@ popd
 %patch158 -p1 -b .allowGroups
 %patch159 -p1 -b .untrusted
 %patch161 -p1 -b .xauth
+%patch162 -p1 -b .tilde
 
 autoreconf
 
@@ -801,6 +804,9 @@ fi
 %endif
 
 %changelog
+* Mon Apr 25 2016 Jakub Jelen <jjelen@redhat.com> - 5.3p1-118.1
+- ssh-copy-id: SunOS does not understand ~ (#1327547)
+
 * Tue Mar 15 2016 Jakub Jelen <jjelen@redhat.com> 5.3p1-117
 - CVE-2016-3115: missing sanitisation of input for X11 forwarding (#1317817)
 
