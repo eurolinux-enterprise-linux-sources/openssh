@@ -69,7 +69,7 @@
 %endif
 
 %define openssh_ver 5.3p1
-%define openssh_rel 122
+%define openssh_rel 123
 %define pam_ssh_agent_ver 0.9.3
 
 Summary: An open source implementation of SSH protocol versions 1 and 2
@@ -284,6 +284,8 @@ Patch167: openssh-5.3p1-prevent-infinite-loop.patch
 Patch168: openssh-5.3p1-s390-closefrom.patch
 # CVE-2015-8325: privilege escalation via user's PAM environment and UseLogin=yes
 Patch169: openssh-5.3p1-CVE-2015-8325.patch
+# CVE-2016-6210: User enumeration via covert timing channel
+Patch170: openssh-5.3p1-CVE-2016-6210.patch
 
 License: BSD
 Group: Applications/Internet
@@ -542,6 +544,7 @@ popd
 %patch167 -p1 -b .infinite
 %patch168 -p1 -b .s390
 %patch169 -p1 -b .use-login
+%patch170 -p1 -b .user-enumeration
 
 autoreconf
 
@@ -825,6 +828,9 @@ fi
 %endif
 
 %changelog
+* Thu Aug 03 2017 Jakub Jelen <jjelen@redhat.com> - 5.3p1-123
+- Fix for CVE-2016-6210: User enumeration via covert timing channel (#1357442)
+
 * Mon Dec 19 2016 Jakub Jelen <jjelen@redhat.com> - 5.3p1-122
 - Allow to use ibmca crypto hardware (#1397547)
 - CVE-2015-8325: privilege escalation via user's PAM environment and UseLogin=yes (1405374)
