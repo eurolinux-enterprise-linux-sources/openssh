@@ -69,7 +69,7 @@
 %endif
 
 %define openssh_ver 5.3p1
-%define openssh_rel 123
+%define openssh_rel 124
 %define pam_ssh_agent_ver 0.9.3
 
 Summary: An open source implementation of SSH protocol versions 1 and 2
@@ -286,6 +286,8 @@ Patch168: openssh-5.3p1-s390-closefrom.patch
 Patch169: openssh-5.3p1-CVE-2015-8325.patch
 # CVE-2016-6210: User enumeration via covert timing channel
 Patch170: openssh-5.3p1-CVE-2016-6210.patch
+# Fix for CVE-2018-15473 (#1619079)
+Patch171: openssh-5.3p1-CVE-2018-15473.patch
 
 License: BSD
 Group: Applications/Internet
@@ -545,6 +547,7 @@ popd
 %patch168 -p1 -b .s390
 %patch169 -p1 -b .use-login
 %patch170 -p1 -b .user-enumeration
+%patch171 -p1 -b .CVE-2018-15473
 
 autoreconf
 
@@ -828,6 +831,9 @@ fi
 %endif
 
 %changelog
+* Tue Mar 19 2019 Jakub Jelen <jjelen@redhat.com> - 5.3p1-124
+- Fix for CVE-2018-15473: User enumeration via malformed packets in authentication requests
+
 * Thu Aug 03 2017 Jakub Jelen <jjelen@redhat.com> - 5.3p1-123
 - Fix for CVE-2016-6210: User enumeration via covert timing channel (#1357442)
 
