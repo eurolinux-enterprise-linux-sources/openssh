@@ -1,0 +1,1434 @@
+From b0695cc9f5478daa14d3f451ecdd39ba6e6abe0f Mon Sep 17 00:00:00 2001
+From: Jakub Jelen <jjelen@redhat.com>
+Date: Tue, 19 Jan 2016 15:29:22 +0100
+Subject: [PATCH] Feature
+
+---
+ pam_ssh_agent_auth-0.9.3/CONTRIBUTORS              |   2 +
+ pam_ssh_agent_auth-0.9.3/Makefile.in               |  28 +-
+ pam_ssh_agent_auth-0.9.3/README                    |  38 +++
+ pam_ssh_agent_auth-0.9.3/configure.ac              |  27 +-
+ pam_ssh_agent_auth-0.9.3/get_command_line.c        | 113 +++++++
+ pam_ssh_agent_auth-0.9.3/get_command_line.h        |  40 +++
+ pam_ssh_agent_auth-0.9.3/identity.h                |  24 ++
+ pam_ssh_agent_auth-0.9.3/iterate_ssh_agent_keys.c  | 137 ++++++++-
+ pam_ssh_agent_auth-0.9.3/iterate_ssh_agent_keys.h  |   2 +-
+ pam_ssh_agent_auth-0.9.3/pam_ssh_agent_auth.c      |  16 +-
+ pam_ssh_agent_auth-0.9.3/pam_ssh_agent_auth.pod    |  50 ++-
+ pam_ssh_agent_auth-0.9.3/pam_static_macros.h       |  29 ++
+ .../pam_user_authorized_keys.c                     |  23 +-
+ .../pam_user_authorized_keys.h                     |   2 +-
+ pam_ssh_agent_auth-0.9.3/pam_user_key_allowed2.c   | 334 ++++++++++++++++-----
+ pam_ssh_agent_auth-0.9.3/pam_user_key_allowed2.h   |   3 +-
+ pam_ssh_agent_auth-0.9.3/secure_filename.c         |  51 +++-
+ pam_ssh_agent_auth-0.9.3/secure_filename.h         |   4 +-
+ pam_ssh_agent_auth-0.9.3/userauth_pubkey_from_id.c |  20 +-
+ pam_ssh_agent_auth-0.9.3/userauth_pubkey_from_id.h |   2 +-
+ 20 files changed, 805 insertions(+), 140 deletions(-)
+ create mode 100644 pam_ssh_agent_auth-0.9.3/README
+ create mode 100644 pam_ssh_agent_auth-0.9.3/get_command_line.c
+ create mode 100644 pam_ssh_agent_auth-0.9.3/get_command_line.h
+
+diff --git a/pam_ssh_agent_auth-0.9.3/CONTRIBUTORS b/pam_ssh_agent_auth-0.9.3/CONTRIBUTORS
+index d5a21cb..22b424a 100644
+--- a/pam_ssh_agent_auth-0.9.3/CONTRIBUTORS
++++ b/pam_ssh_agent_auth-0.9.3/CONTRIBUTORS
+@@ -1,3 +1,5 @@
+ * Foremost, OpenSSH from which this project is derived.
+ * Jamie Beverly
+ * Rafael D'Halleweyn - 2011-06-05 18:56:24 EDT
++* Jan-Pieter Cornet ( johnpc ) - 2012-03-23 03:25:52 PDT
++* chrysn@fsfe.org
+diff --git a/pam_ssh_agent_auth-0.9.3/Makefile.in b/pam_ssh_agent_auth-0.9.3/Makefile.in
+index 47bb103..4977838 100644
+--- a/pam_ssh_agent_auth-0.9.3/Makefile.in
++++ b/pam_ssh_agent_auth-0.9.3/Makefile.in
+@@ -1,4 +1,28 @@
+ # $Id: Makefile.in,v 1.289 2008/03/13 01:41:31 djm Exp $
++#
++# Copyright (c) 2000 Markus Friedl.  All rights reserved.
++# Modifications Copyright (c) 2008-2014 Jamie Beverly. All Rights reserved
++#
++# Redistribution and use in source and binary forms, with or without
++# modification, are permitted provided that the following conditions
++# are met:
++# 1. Redistributions of source code must retain the above copyright
++#    notice, this list of conditions and the following disclaimer.
++# 2. Redistributions in binary form must reproduce the above copyright
++#    notice, this list of conditions and the following disclaimer in the
++#    documentation and/or other materials provided with the distribution.
++#
++# THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
++# IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++# OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++# IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
++# INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
++# NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++# DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++# THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++# (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
++# THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++#
+ 
+ # uncomment if you run a non bourne compatable shell. Ie. csh
+ #SHELL = @SH@
+@@ -46,9 +70,9 @@ INSTALL_SSH_RAND_HELPER=@INSTALL_SSH_RAND_HELPER@
+ 
+ PAM_MODULES=pam_ssh_agent_auth.so
+ 
+-SSHOBJS=xmalloc.o atomicio.o authfd.o bufaux.o bufbn.o buffer.o cleanup.o entropy.o fatal.o key.o log.o misc.o secure_filename.o ssh-dss.o ssh-rsa.o uuencode.o compat.o
++SSHOBJS=xmalloc.o atomicio.o authfd.o bufaux.o bufbn.o buffer.o cleanup.o entropy.o fatal.o key.o log.o misc.o secure_filename.o ssh-dss.o ssh-rsa.o uuencode.o compat.o uidswap.o
+ 
+-PAM_SSH_AGENT_AUTH_OBJS=pam_user_key_allowed2.o iterate_ssh_agent_keys.o userauth_pubkey_from_id.o pam_user_authorized_keys.o secure_filename.o
++PAM_SSH_AGENT_AUTH_OBJS=pam_user_key_allowed2.o iterate_ssh_agent_keys.o userauth_pubkey_from_id.o pam_user_authorized_keys.o secure_filename.o get_command_line.o
+ 
+ 
+ MANPAGES_IN	= pam_ssh_agent_auth.pod
+diff --git a/pam_ssh_agent_auth-0.9.3/README b/pam_ssh_agent_auth-0.9.3/README
+new file mode 100644
+index 0000000..c1a49ef
+--- /dev/null
++++ b/pam_ssh_agent_auth-0.9.3/README
+@@ -0,0 +1,38 @@
++pam_ssh_agent_auth is a PAM module which permits PAM authentication via your
++keyring in a forwarded ssh-agent.
++
++Release 0.10.1 is stable, and has been tested on FreeBSD, Solaris 10, Solaris 11,
++RHEL5, RHEL6, Debian Wheezy, Ubuntu 12.04 (LTS), Ubuntu 13.10,
++and MacOS X 10.7.
++
++This module can be used to provide authentication for anything run locally that
++supports PAM. It was written specifically with the intention of permitting
++authentication for sudo without password entry, and also has been proven useful
++for use with su as an alternative to wheel.
++
++It serves as middle ground between the two most common, and suboptimal
++alternatives for large-scale system administration: allowing rootlogin via ssh,
++or using NOPASSWD in sudoers. This module allows for ssh public-key
++authentication, and it does this by leveraging an authentication mechanism you
++are probably already using, ssh-agent.
++
++There are caveats of course, ssh-agent forwarding has it’s own security risks
++which must be carefully considered for your environment. In cases where there
++are not untrustworthy intermediate servers, and you wish to retain traceability,
++accountability, and required authentication for privileged command invocation,
++the benefits should outweigh the risks. Release 0.10.1 can be downloaded from
++SourceForge: https://sourceforge.net/project/showfiles.php?group_id=249556
++
++If you encounter any issues with usability or security, please use the project's
++SourceForge tracker:
++https://sourceforge.net/tracker2/?group_id=249556&atid=1126337
++
++Note that if you wish to use this for sudo, you will need a version of sudo that
++preserves the env_keep environment during authentication; and ideally a version
++incorporating my minor patch which ensures RUSER is set during PAM authentication.
++
++sudo 1.6.8p12 does not work correctly with this PAM module, because it clears the
++environment (even env_keep variables) prior to attempting PAM authentication.
++
++sudo 1.7.2p1 or later is preferred, as it correctly sets PAM_RUSER for
++authentication.
+diff --git a/pam_ssh_agent_auth-0.9.3/configure.ac b/pam_ssh_agent_auth-0.9.3/configure.ac
+index 1f372ce..4eb1f32 100644
+--- a/pam_ssh_agent_auth-0.9.3/configure.ac
++++ b/pam_ssh_agent_auth-0.9.3/configure.ac
+@@ -18,8 +18,10 @@ AC_INIT(OpenSSH, Portable, openssh-unix-dev@mindrot.org)
+ AC_REVISION($Revision: 1.397 $)
+ AC_CONFIG_SRCDIR([pam_ssh_agent_auth.c])
+ 
+-AC_CONFIG_HEADER(config.h)
++AC_CONFIG_SRCDIR([config.h.in])
++AC_CONFIG_HEADERS([config.h])
+ AC_PROG_CC
++AC_C_INLINE
+ AC_CANONICAL_HOST
+ AC_C_BIGENDIAN
+ 
+@@ -117,7 +119,6 @@ if test -z "$LD" ; then
+ fi
+ AC_SUBST(LD)
+ 
+-AC_C_INLINE
+ 
+ AC_CHECK_DECL(LLONG_MAX, have_llong_max=1, , [#include <limits.h>])
+ 
+@@ -151,7 +152,7 @@ if test "$GCC" = "yes" || test "$GCC" = "egcs"; then
+ 		     ;;
+ 		2.*) no_attrib_nonnull=1 ;;
+ 		3.*) CFLAGS="$CFLAGS -Wsign-compare" ;;
+-		4.*) CFLAGS="$CFLAGS -Wsign-compare -Wno-pointer-sign" ;;
++		4.*) CFLAGS="$CFLAGS -Wsign-compare -Wall -Wextra" ;;
+ 		*) ;;
+ 	esac
+ 
+@@ -1656,11 +1657,11 @@ fi
+ 
+ if test "x$check_for_conflicting_getspnam" = "x1"; then
+ 	AC_MSG_CHECKING(for conflicting getspnam in shadow.h)
+-	AC_COMPILE_IFELSE(
++	AC_COMPILE_IFELSE([AC_LANG_SOURCE(
+ 		[
+ #include <shadow.h>
+ int main(void) {exit(0);}
+-		],
++		])],
+ 		[
+ 			AC_MSG_RESULT(no)
+ 		],
+@@ -2720,7 +2721,7 @@ fi
+ dnl make sure we're using the real structure members and not defines
+ AC_CACHE_CHECK([for msg_accrights field in struct msghdr],
+ 		ac_cv_have_accrights_in_msghdr, [
+-	AC_COMPILE_IFELSE(
++	AC_COMPILE_IFELSE([AC_LANG_SOURCE(
+ 		[
+ #include <sys/types.h>
+ #include <sys/socket.h>
+@@ -2734,7 +2735,7 @@ struct msghdr m;
+ m.msg_accrights = 0;
+ exit(0);
+ }
+-		],
++		])],
+ 		[ ac_cv_have_accrights_in_msghdr="yes" ],
+ 		[ ac_cv_have_accrights_in_msghdr="no" ]
+ 	)
+@@ -2747,7 +2748,7 @@ fi
+ 
+ AC_CACHE_CHECK([for msg_control field in struct msghdr],
+ 		ac_cv_have_control_in_msghdr, [
+-	AC_COMPILE_IFELSE(
++	AC_COMPILE_IFELSE([AC_LANG_SOURCE(
+ 		[
+ #include <sys/types.h>
+ #include <sys/socket.h>
+@@ -2761,7 +2762,7 @@ struct msghdr m;
+ m.msg_control = 0;
+ exit(0);
+ }
+-		],
++		])],
+ 		[ ac_cv_have_control_in_msghdr="yes" ],
+ 		[ ac_cv_have_control_in_msghdr="no" ]
+ 	)
+@@ -2891,14 +2892,14 @@ AC_SEARCH_LIBS(getrrsetbyname, resolv,
+ 		    saved_LIBS="$LIBS"
+ 		    LIBS="$LIBS -lresolv"
+ 		    AC_MSG_CHECKING(for res_query in -lresolv)
+-		    AC_LINK_IFELSE([
++		    AC_LINK_IFELSE([AC_LANG_SOURCE([
+ #include <resolv.h>
+ int main()
+ {
+ 	res_query (0, 0, 0, 0, 0);
+ 	return 0;
+ }
+-			],
++			])],
+ 			[LIBS="$LIBS -lresolv"
+ 			 AC_MSG_RESULT(yes)],
+ 			[LIBS="$saved_LIBS"
+@@ -2915,7 +2916,7 @@ int main()
+ 	])
+ 
+ AC_MSG_CHECKING(if struct __res_state _res is an extern)
+-AC_LINK_IFELSE([
++AC_LINK_IFELSE([AC_LANG_SOURCE([
+ #include <stdio.h>
+ #if HAVE_SYS_TYPES_H
+ # include <sys/types.h>
+@@ -2925,7 +2926,7 @@ AC_LINK_IFELSE([
+ #include <resolv.h>
+ extern struct __res_state _res;
+ int main() { return 0; }
+-		],
++		])],
+ 		[AC_MSG_RESULT(yes)
+ 		 AC_DEFINE(HAVE__RES_EXTERN, 1,
+ 		    [Define if you have struct __res_state _res as an extern])
+diff --git a/pam_ssh_agent_auth-0.9.3/get_command_line.c b/pam_ssh_agent_auth-0.9.3/get_command_line.c
+new file mode 100644
+index 0000000..e880fee
+--- /dev/null
++++ b/pam_ssh_agent_auth-0.9.3/get_command_line.c
+@@ -0,0 +1,113 @@
++/*
++ * Copyright (c) 2014, Jamie Beverly.
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without modification, are
++ * permitted provided that the following conditions are met:
++ *
++ *    1. Redistributions of source code must retain the above copyright notice, this list of
++ *       conditions and the following disclaimer.
++ *
++ *    2. Redistributions in binary form must reproduce the above copyright notice, this list
++ *       of conditions and the following disclaimer in the documentation and/or other materials
++ *       provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY Jamie Beverly ``AS IS'' AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
++ * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL Jamie Beverly OR
++ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
++ * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
++ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
++ * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ * The views and conclusions contained in the software and documentation are those of the
++ * authors and should not be interpreted as representing official policies, either expressed
++ * or implied, of Jamie Beverly.
++ */
++
++#include <stdio.h>
++#include <errno.h>
++#include <string.h>
++
++#include "includes.h"
++#include "xmalloc.h"
++#include "get_command_line.h"
++
++#ifdef HAVE_PROC_PID_CMDLINE
++
++static size_t
++proc_pid_cmdline(char *** inargv)
++{
++    pid_t pid;
++    FILE *f = NULL;
++    char filename[64] = { 0 }, c = '\0';
++    char ** argv;
++    char argbuf[MAX_LEN_PER_CMDLINE_ARG + 1] = { 0 };
++    size_t count = 0, len = 0;
++
++    pid = getpid();
++    argv = NULL;
++
++    snprintf(filename, sizeof(filename), "/proc/%d/cmdline", pid);
++    f = fopen(filename, "r");
++
++    if (f) { 
++        while (!feof(f) && count < MAX_CMDLINE_ARGS) {
++            if (len > MAX_LEN_PER_CMDLINE_ARG) {
++                while (!feof(f) && (c = fgetc(f)) != '\0');
++            }
++            else {
++                c = fgetc(f);
++            }
++            switch (c) {
++                case EOF:
++                case '\0':
++                    if (len > 0) { 
++                        argv = xrealloc(argv, count + 1, sizeof(*argv));
++                        argv[count] = xcalloc(len + 1, sizeof(*argv[count]));
++                        strncpy(argv[count++], argbuf, len);
++                        memset(argbuf, '\0', MAX_LEN_PER_CMDLINE_ARG + 1);
++                        len = 0;
++                    }
++                    break;
++                default:
++                    argbuf[len++] = c;
++                    break;
++            }
++        }
++        fclose(f);
++    }
++    *inargv = argv;
++    return count;
++}
++#endif
++
++
++/*
++ * takes a pointer to an unallocated array of arrays of strings, populates the
++ * given pointer with the address of the allocated array of strings collected
++ */
++size_t 
++pamsshagentauth_get_command_line(char *** argv)
++{
++#ifdef HAVE_PROC_PID_CMDLINE
++    return proc_pid_cmdline(argv);
++#else
++    /* No other supported implementations at this time */
++    return 0;
++#endif
++}
++
++void
++pamsshagentauth_free_command_line(char ** argv, size_t n_args)
++{
++    size_t i;
++    for (i = 0; i < n_args; i++)
++        xfree(argv[i]);
++
++    xfree(argv);
++    return;
++}
++
+diff --git a/pam_ssh_agent_auth-0.9.3/get_command_line.h b/pam_ssh_agent_auth-0.9.3/get_command_line.h
+new file mode 100644
+index 0000000..37cd077
+--- /dev/null
++++ b/pam_ssh_agent_auth-0.9.3/get_command_line.h
+@@ -0,0 +1,40 @@
++/*
++ * Copyright (c) 2014, Jamie Beverly.
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without modification, are
++ * permitted provided that the following conditions are met:
++ *
++ *    1. Redistributions of source code must retain the above copyright notice, this list of
++ *       conditions and the following disclaimer.
++ *
++ *    2. Redistributions in binary form must reproduce the above copyright notice, this list
++ *       of conditions and the following disclaimer in the documentation and/or other materials
++ *       provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY Jamie Beverly ``AS IS'' AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
++ * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL Jamie Beverly OR
++ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
++ * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
++ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
++ * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ * The views and conclusions contained in the software and documentation are those of the
++ * authors and should not be interpreted as representing official policies, either expressed
++ * or implied, of Jamie Beverly.
++ */
++
++#ifndef _GET_COMMAND_LINE_H
++#define _GET_COMMAND_LINE_H
++
++#include "includes.h"
++
++size_t pamsshagentauth_get_command_line(char ***);
++void pamsshagentauth_free_command_line(char **, size_t);
++#define MAX_CMDLINE_ARGS 255
++#define MAX_LEN_PER_CMDLINE_ARG 255
++
++#endif
+diff --git a/pam_ssh_agent_auth-0.9.3/identity.h b/pam_ssh_agent_auth-0.9.3/identity.h
+index eb21320..0bde782 100644
+--- a/pam_ssh_agent_auth-0.9.3/identity.h
++++ b/pam_ssh_agent_auth-0.9.3/identity.h
+@@ -1,3 +1,27 @@
++/*
++ * Copyright (c) 2000 Markus Friedl.  All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without
++ * modification, are permitted provided that the following conditions
++ * are met:
++ * 1. Redistributions of source code must retain the above copyright
++ *    notice, this list of conditions and the following disclaimer.
++ * 2. Redistributions in binary form must reproduce the above copyright
++ *    notice, this list of conditions and the following disclaimer in the
++ *    documentation and/or other materials provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
++ * IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
++ * OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
++ * IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
++ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
++ * NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
++ * DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
++ * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
++ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
++ * THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ */
++
+ #ifndef _IDENTITY_H
+ #define _IDENTITY_H
+ #include "includes.h"
+diff --git a/pam_ssh_agent_auth-0.9.3/iterate_ssh_agent_keys.c b/pam_ssh_agent_auth-0.9.3/iterate_ssh_agent_keys.c
+index 11ab6e2..6b4d531 100644
+--- a/pam_ssh_agent_auth-0.9.3/iterate_ssh_agent_keys.c
++++ b/pam_ssh_agent_auth-0.9.3/iterate_ssh_agent_keys.c
+@@ -28,6 +28,8 @@
+  */
+ 
+ 
++#include <string.h>
++
+ #include "includes.h"
+ #include "config.h"
+ 
+@@ -48,26 +50,75 @@
+ #include <errno.h>
+ #include <fcntl.h>
+ #include <openssl/evp.h>
++#include "ssh2.h"
++#include "misc.h"
+ 
+ #include "userauth_pubkey_from_id.h"
+ #include "identity.h"
++#include "get_command_line.h"
++extern char **environ;
++
++#define PAM_SSH_AGENT_AUTH_REQUESTv1 101
++
++static char *
++log_action(char ** action, size_t count)
++{
++    size_t i;
++    char *buf = NULL;
++
++    if (count == 0)
++        return NULL;
++   
++    buf = xcalloc((count * MAX_LEN_PER_CMDLINE_ARG) + (count * 3), sizeof(*buf));
++    for (i = 0; i < count; i++) {
++        strcat(buf, (i > 0) ? " '" : "'");
++        strncat(buf, action[i], MAX_LEN_PER_CMDLINE_ARG);
++        strcat(buf, "'");
++    }
++    return buf;
++}
++
++void
++agent_action(Buffer *buf, char ** action, size_t count)
++{
++    size_t i;
++    buffer_init(buf);
+ 
+-u_char * session_id2 = NULL;
+-uint8_t session_id_len = 0;
++    buffer_put_int(buf, count);
++
++    for (i = 0; i < count; i++) {
++        buffer_put_cstring(buf, action[i]);
++    }
++}
+ 
+-u_char *
+-session_id2_gen()
++void
++session_id2_gen(Buffer * session_id2, const char * user,
++                const char * ruser, const char * servicename)
+ {
+     char *cookie = NULL;
+     uint8_t i = 0;
+     uint32_t rnd = 0;
++    uint8_t cookie_len;
++    char hostname[256] = { 0 };
++    char pwd[1024] = { 0 };
++    time_t ts;
++    char ** reported_argv = NULL;
++    size_t count = 0;
++    char * action_logbuf = NULL;
++    Buffer action_agentbuf;
++    uint8_t free_logbuf = 0;
++    char * retc;
++    int32_t reti;
+ 
+     rnd = arc4random();
+-    session_id_len = (uint8_t) rnd;
++    cookie_len = ((uint8_t) rnd);
++    while (cookie_len < 16) { 
++        cookie_len += 16;                                          /* Add 16 bytes to the size to ensure that while the length is random, the length is always reasonable; ticket #18 */
++    }
+ 
+-    cookie = calloc(1,session_id_len);
++    cookie = xcalloc(1, cookie_len);
+ 
+-    for (i = 0; i < session_id_len; i++) {
++    for (i = 0; i < cookie_len; i++) {
+         if (i % 4 == 0) {
+             rnd = arc4random();
+         }
+@@ -75,7 +126,64 @@ session_id2_gen()
+         rnd >>= 8;
+     }
+ 
+-    return cookie;
++    count = pamsshagentauth_get_command_line(&reported_argv);
++    if (count > 0) { 
++        free_logbuf = 1;
++        action_logbuf = log_action(reported_argv, count);
++        agent_action(&action_agentbuf, reported_argv, count);
++        pamsshagentauth_free_command_line(reported_argv, count);
++    }
++    else {
++        action_logbuf = "unknown on this platform";
++        buffer_init(&action_agentbuf); /* stays empty, means unavailable */
++    }
++    
++    /*
++    action = getenv("SUDO_COMMAND");
++    if(!action) {
++        action = getenv("PAM_AUTHORIZED_ACTION");
++        if(!action) {
++            action = empty;
++        }
++    }
++    */
++
++    reti = gethostname(hostname, sizeof(hostname) - 1);
++    retc = getcwd(pwd, sizeof(pwd) - 1);
++    time(&ts);
++
++    buffer_init(session_id2);
++
++    buffer_put_int(session_id2, PAM_SSH_AGENT_AUTH_REQUESTv1);
++    /* debug3("cookie: %s", tohex(cookie, cookie_len)); */
++    buffer_put_string(session_id2, cookie, cookie_len);
++    /* debug3("user: %s", user); */
++    buffer_put_cstring(session_id2, user);
++    /* debug3("ruser: %s", ruser); */
++    buffer_put_cstring(session_id2, ruser);
++    /* debug3("servicename: %s", servicename); */
++    buffer_put_cstring(session_id2, servicename);
++    /* debug3("pwd: %s", pwd); */
++    if(retc)
++        buffer_put_cstring(session_id2, pwd);
++    else
++        buffer_put_cstring(session_id2, "");
++    /* debug3("action: %s", action_logbuf); */
++    buffer_put_string(session_id2, action_agentbuf.buf + action_agentbuf.offset, action_agentbuf.end - action_agentbuf.offset);
++    if (free_logbuf) { 
++        xfree(action_logbuf);
++        buffer_free(&action_agentbuf);
++    }
++    /* debug3("hostname: %s", hostname); */
++    if(reti >= 0)
++        buffer_put_cstring(session_id2, hostname);
++    else
++        buffer_put_cstring(session_id2, "");
++    /* debug3("ts: %ld", ts); */
++    buffer_put_int64(session_id2, (uint64_t) ts);
++
++    free(cookie);
++    return;
+ }
+ 
+ /* 
+@@ -174,19 +282,21 @@ ssh_get_authentication_connection_for_uid(uid_t uid)
+ }
+ 
+ int
+-find_authorized_keys(uid_t uid)
++find_authorized_keys(const char * user, const char * ruser, const char * servicename)
+ {
++    Buffer session_id2 = { 0 };
+     Identity *id;
+     Key *key;
+     AuthenticationConnection *ac;
+     char *comment;
+     uint8_t retval = 0;
++    uid_t uid = getpwnam(ruser)->pw_uid;
+ 
+     OpenSSL_add_all_digests();
+-    session_id2 = session_id2_gen();
++    session_id2_gen(&session_id2, user, ruser, servicename);
+ 
+     if ((ac = ssh_get_authentication_connection_for_uid(uid))) {
+-        verbose("Contacted ssh-agent of user %s (%u)", getpwuid(uid)->pw_name, uid);
++        verbose("Contacted ssh-agent of user %s (%u)", ruser, uid);
+         for (key = ssh_get_first_identity(ac, &comment, 2); key != NULL; key = ssh_get_next_identity(ac, &comment, 2)) 
+         {
+             if(key != NULL) {
+@@ -194,7 +304,7 @@ find_authorized_keys(uid_t uid)
+                 id->key = key;
+                 id->filename = comment;
+                 id->ac = ac;
+-                if(userauth_pubkey_from_id(id)) {
++                if(userauth_pubkey_from_id(ruser, id, &session_id2)) {
+                     retval = 1;
+                 }
+                 xfree(id->filename);
+@@ -204,12 +314,13 @@ find_authorized_keys(uid_t uid)
+                     break;
+             }
+         }
++        buffer_free(&session_id2);
+         ssh_close_authentication_connection(ac);
+     }
+     else {
+         verbose("No ssh-agent could be contacted");
+     }
+-    xfree(session_id2);
++    /*xfree(session_id2);*/
+     EVP_cleanup();
+     return retval;
+ }
+diff --git a/pam_ssh_agent_auth-0.9.3/iterate_ssh_agent_keys.h b/pam_ssh_agent_auth-0.9.3/iterate_ssh_agent_keys.h
+index ed7549e..e6c75aa 100644
+--- a/pam_ssh_agent_auth-0.9.3/iterate_ssh_agent_keys.h
++++ b/pam_ssh_agent_auth-0.9.3/iterate_ssh_agent_keys.h
+@@ -31,6 +31,6 @@
+ #ifndef _ITERATE_SSH_AGENT_KEYS_H
+ #define _ITERATE_SSH_AGENT_KEYS_H
+ 
+-int find_authorized_keys(uid_t);
++int find_authorized_keys(const char * user, const char * ruser, const char * servicename);
+ 
+ #endif
+diff --git a/pam_ssh_agent_auth-0.9.3/pam_ssh_agent_auth.c b/pam_ssh_agent_auth-0.9.3/pam_ssh_agent_auth.c
+index d3f4325..37309f7 100644
+--- a/pam_ssh_agent_auth-0.9.3/pam_ssh_agent_auth.c
++++ b/pam_ssh_agent_auth-0.9.3/pam_ssh_agent_auth.c
+@@ -59,9 +59,12 @@
+ #include "pam_user_authorized_keys.h"
+ 
+ #define strncasecmp_literal(A,B) strncasecmp( A, B, sizeof(B) - 1)
++#define UNUSED(expr) do { (void)(expr); } while (0)
+ 
+ char           *authorized_keys_file = NULL;
+ uint8_t         allow_user_owned_authorized_keys_file = 0;
++char           *authorized_keys_command = NULL;
++char           *authorized_keys_command_user = NULL;
+ 
+ #if ! HAVE___PROGNAME || HAVE_BUNDLE
+ char           *__progname;
+@@ -90,6 +93,7 @@ pam_sm_authenticate(pam_handle_t * pamh, int flags, int argc, const char **argv)
+     facility = SYSLOG_FACILITY_AUTHPRIV;
+ #endif
+ 
++    UNUSED(flags);
+     pam_get_item(pamh, PAM_SERVICE, (void *) &servicename);
+ /*
+  * XXX: 
+@@ -113,6 +117,12 @@ pam_sm_authenticate(pam_handle_t * pamh, int flags, int argc, const char **argv)
+         if(strncasecmp_literal(*argv_ptr, "file=") == 0 ) { 
+             authorized_keys_file_input = *argv_ptr + sizeof("file=") - 1;
+         }
++        if(strncasecmp_literal(*argv_ptr, "authorized_keys_command=") == 0 ) { 
++            authorized_keys_command = *argv_ptr + sizeof("authorized_keys_command=") - 1;
++        }
++        if(strncasecmp_literal(*argv_ptr, "authorized_keys_command_user=") == 0 ) { 
++            authorized_keys_command_user = *argv_ptr + sizeof("authorized_keys_command_user=") - 1;
++        }
+ #ifdef ENABLE_SUDO_HACK
+         if(strncasecmp_literal(*argv_ptr, "sudo_service_name=") == 0) { 
+             strncpy( sudo_service_name, *argv_ptr + sizeof("sudo_service_name=") - 1, sizeof(sudo_service_name) - 1);
+@@ -182,7 +192,7 @@ pam_sm_authenticate(pam_handle_t * pamh, int flags, int argc, const char **argv)
+         /* 
+          * this pw_uid is used to validate the SSH_AUTH_SOCK, and so must be the uid of the ruser invoking the program, not the target-user
+          */
+-        if(find_authorized_keys(getpwnam(ruser)->pw_uid)) {
++        if(find_authorized_keys(user, ruser, servicename)) { /* getpwnam(ruser)->pw_uid)) { */
+             logit("Authenticated: `%s' as `%s' using %s", ruser, user, authorized_keys_file);
+             retval = PAM_SUCCESS;
+         } else {
+@@ -207,6 +217,10 @@ cleanexit:
+ PAM_EXTERN int __attribute__ ((visibility ("default")))
+ pam_sm_setcred(pam_handle_t * pamh, int flags, int argc, const char **argv)
+ {
++    UNUSED(pamh);
++    UNUSED(flags);
++    UNUSED(argc);
++    UNUSED(argv);
+     return PAM_SUCCESS;
+ }
+ 
+diff --git a/pam_ssh_agent_auth-0.9.3/pam_ssh_agent_auth.pod b/pam_ssh_agent_auth-0.9.3/pam_ssh_agent_auth.pod
+index 4570746..76b1f0f 100644
+--- a/pam_ssh_agent_auth-0.9.3/pam_ssh_agent_auth.pod
++++ b/pam_ssh_agent_auth-0.9.3/pam_ssh_agent_auth.pod
+@@ -1,8 +1,12 @@
+-=head1 PAM_SSH_AGENT_AUTH
++=head1 NAME
++
++pam_ssh_agent_auth - PAM module for granting permissions based on SSH agent requests
++
++=head1 DESCRIPTION
+ 
+ This module provides authentication via ssh-agent.  If an ssh-agent listening at SSH_AUTH_SOCK can successfully authenticate that it has the secret key for a public key in the specified file, authentication is granted, otherwise authentication fails.
+ 
+-=head1 SUMMARY
++=head1 CONFIGURATION
+ 
+ =over
+ 
+@@ -10,7 +14,8 @@ This module provides authentication via ssh-agent.  If an ssh-agent listening at
+  auth	sufficient	pam_ssh_agent_auth.so file=/etc/security/authorized_keys
+ 
+ =item /etc/sudoers:
+-
++ 
++In older versions of sudo (< 1.8.5) it was necessary to set:
+  Defaults    env_keep += "SSH_AUTH_SOCK"
+ 
+ =back
+@@ -33,6 +38,15 @@ Specify the path to the authorized_keys file(s) you would like to use for authen
+ A flag which enables authorized_keys files to be owned by the invoking user, instead of root. This flag is enabled automatically whenever
+ the expansions %h or ~ are used.
+ 
++=item authorized_keys_command=<path to executable>
++
++Specify an external command to run, which should take a single argument, the username of the person being authenticated, and emit to its stdout a file in authorized_keys format.
++This is ideally suited for use with sssd's sss_ssh_authorizedkeys, for authenticating users via authorized_keys stored in ldap or other sssd supported security service.
++
++=item authorized_keys_command_user=<username>
++
++Specify a user to run the authorized_keys_command as. If this option is not specified, the authorized_keys_command will be run as the user being authenticated.
++
+ =item debug
+ 
+ A flag which enables verbose logging
+@@ -105,4 +119,34 @@ so this file must be owned by root.
+ 
+ =back
+ 
++=head1 COPYRIGHT
++
++ Copyright (c) 2008-2014, Jamie Beverly.
++ And is based on openssh, and the included works by Markus Friedl, Darren Tucker,
++ Todd C. Miller, Ben Lindstrom, Tim Rice, Damien Miller, and many others.
++
++ All rights reserved.
++
++ See sources for complete attributions.
++ 
++ Redistribution and use in source and binary forms, with or without modification, are
++ permitted provided that the following conditions are met:
++
++ 1. Redistributions of source code must retain the above copyright notice, this list of
++    conditions and the following disclaimer.
++
++ 2. Redistributions in binary form must reproduce the above copyright notice, this list
++    of conditions and the following disclaimer in the documentation and/or other materials
++    provided with the distribution.
++
++ THIS SOFTWARE IS PROVIDED BY Jamie Beverly ``AS IS'' AND ANY EXPRESS OR IMPLIED
++ WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
++ FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL Jamie Beverly OR
++ CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
++ ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
++ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
++ ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++
+ =cut
+diff --git a/pam_ssh_agent_auth-0.9.3/pam_static_macros.h b/pam_ssh_agent_auth-0.9.3/pam_static_macros.h
+index a4938d3..a991704 100644
+--- a/pam_ssh_agent_auth-0.9.3/pam_static_macros.h
++++ b/pam_ssh_agent_auth-0.9.3/pam_static_macros.h
+@@ -1,3 +1,32 @@
++/*
++ * Copyright (c) 2008, Jamie Beverly.
++ * All rights reserved.
++ *
++ * Redistribution and use in source and binary forms, with or without modification, are
++ * permitted provided that the following conditions are met:
++ *
++ *    1. Redistributions of source code must retain the above copyright notice, this list of
++ *       conditions and the following disclaimer.
++ *
++ *    2. Redistributions in binary form must reproduce the above copyright notice, this list
++ *       of conditions and the following disclaimer in the documentation and/or other materials
++ *       provided with the distribution.
++ *
++ * THIS SOFTWARE IS PROVIDED BY Jamie Beverly ``AS IS'' AND ANY EXPRESS OR IMPLIED
++ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
++ * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL Jamie Beverly OR
++ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
++ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
++ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
++ * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
++ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
++ * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
++ *
++ * The views and conclusions contained in the software and documentation are those of the
++ * authors and should not be interpreted as representing official policies, either expressed
++ * or implied, of Jamie Beverly.
++ */
++
+ #ifndef __PAM_STATIC_MACROS_H
+ #define __PAM_STATIC_MACROS_H
+ 
+diff --git a/pam_ssh_agent_auth-0.9.3/pam_user_authorized_keys.c b/pam_ssh_agent_auth-0.9.3/pam_user_authorized_keys.c
+index 60bef68..abc0a62 100644
+--- a/pam_ssh_agent_auth-0.9.3/pam_user_authorized_keys.c
++++ b/pam_ssh_agent_auth-0.9.3/pam_user_authorized_keys.c
+@@ -1,4 +1,4 @@
+-/*
++/* 
+  * Copyright (c) 2008, Jamie Beverly. 
+  * All rights reserved.
+  * 
+@@ -80,9 +80,15 @@
+ #include "identity.h"
+ #include "pam_user_key_allowed2.h"
+ 
+-extern char    *authorized_keys_file;
+-extern uint8_t  allow_user_owned_authorized_keys_file;
+-uid_t           authorized_keys_file_allowed_owner_uid;
++extern char *authorized_keys_file;
++
++extern char *authorized_keys_command;
++
++extern char *authorized_keys_command_user;
++
++extern uint8_t allow_user_owned_authorized_keys_file;
++
++uid_t authorized_keys_file_allowed_owner_uid;
+ 
+ void
+ parse_authorized_key_file(const char *user, const char *authorized_keys_file_input)
+@@ -137,8 +143,11 @@ parse_authorized_key_file(const char *user, const char *authorized_keys_file_inp
+ }
+ 
+ int
+-pam_user_key_allowed(Key * key)
++pam_user_key_allowed(const char *ruser, Key * key)
+ {
+     return pam_user_key_allowed2(getpwuid(authorized_keys_file_allowed_owner_uid), key, authorized_keys_file)
+-        || pam_user_key_allowed2(getpwuid(0), key, authorized_keys_file);
++        || pam_user_key_allowed2(getpwuid(0), key, authorized_keys_file)
++        || pam_user_key_command_allowed2(authorized_keys_command,
++                                         authorized_keys_command_user,
++                                         getpwnam(ruser), key);
+ }
+diff --git a/pam_ssh_agent_auth-0.9.3/pam_user_authorized_keys.h b/pam_ssh_agent_auth-0.9.3/pam_user_authorized_keys.h
+index ae9a4b8..a871bf0 100644
+--- a/pam_ssh_agent_auth-0.9.3/pam_user_authorized_keys.h
++++ b/pam_ssh_agent_auth-0.9.3/pam_user_authorized_keys.h
+@@ -32,7 +32,7 @@
+ #define _PAM_USER_KEY_ALLOWED_H
+ 
+ #include "identity.h"
+-int pam_user_key_allowed(Key *);
++int pam_user_key_allowed(const char *, Key *);
+ void parse_authorized_key_file(const char *, const char *);
+ 
+ #endif
+diff --git a/pam_ssh_agent_auth-0.9.3/pam_user_key_allowed2.c b/pam_ssh_agent_auth-0.9.3/pam_user_key_allowed2.c
+index c6680e4..4aceecb 100644
+--- a/pam_ssh_agent_auth-0.9.3/pam_user_key_allowed2.c
++++ b/pam_ssh_agent_auth-0.9.3/pam_user_key_allowed2.c
+@@ -1,4 +1,4 @@
+-/*
++/* 
+  * Copyright (c) 2000 Markus Friedl.  All rights reserved.
+  *
+  * Redistribution and use in source and binary forms, with or without
+@@ -33,9 +33,14 @@
+ 
+ #include <sys/types.h>
+ #include <sys/stat.h>
++#include <sys/wait.h>
++#include <fcntl.h>
+ 
+ #include <pwd.h>
+ #include <stdio.h>
++#include <signal.h>
++#include <errno.h>
++#include <string.h>
+ 
+ #include "xmalloc.h"
+ #include "ssh.h"
+@@ -48,87 +53,263 @@
+ #include "pathnames.h"
+ #include "misc.h"
+ #include "secure_filename.h"
++#include "uidswap.h"
++#include <unistd.h>
+ 
+ #include "identity.h"
+ 
+ /* return 1 if user allows given key */
+ /* Modified slightly from original found in auth2-pubkey.c */
++static int
++pamsshagentauth_check_authkeys_file(FILE * f, char *file, Key * key)
++{
++    char line[SSH_MAX_PUBKEY_BYTES];
++    int found_key = 0;
++    u_long linenum = 0;
++    Key *found;
++    char *fp;
++
++    found_key = 0;
++    found = key_new(key->type);
++
++    while(read_keyfile_line(f, file, line, sizeof(line), &linenum) != -1) {
++        char *cp = NULL; /* *key_options = NULL; */
++
++        /* Skip leading whitespace, empty and comment lines. */
++        for(cp = line; *cp == ' ' || *cp == '\t'; cp++);
++        if(!*cp || *cp == '\n' || *cp == '#')
++            continue;
++
++        if(key_read(found, &cp) != 1) {
++            /* no key? check if there are options for this key */
++            int quoted = 0;
++
++            verbose("user_key_allowed: check options: '%s'", cp);
++            /* key_options = cp; */
++            for(; *cp && (quoted || (*cp != ' ' && *cp != '\t')); cp++) {
++                if(*cp == '\\' && cp[1] == '"')
++                    cp++;                                  /* Skip both */
++                else if(*cp == '"')
++                    quoted = !quoted;
++            }
++            /* Skip remaining whitespace. */
++            for(; *cp == ' ' || *cp == '\t'; cp++);
++            if(key_read(found, &cp) != 1) {
++                verbose("user_key_allowed: advance: '%s'", cp);
++                /* still no key? advance to next line */
++                continue;
++            }
++        }
++        if(key_equal(found, key)) {
++            found_key = 1;
++            logit("matching key found: file/command %s, line %lu", file,
++                                  linenum);
++            fp = key_fingerprint(found, SSH_FP_MD5, SSH_FP_HEX);
++            logit("Found matching %s key: %s",
++                                  key_type(found), fp);
++            xfree(fp);
++            break;
++        }
++    }
++    key_free(found);
++    if(!found_key)
++        verbose("key not found");
++    return found_key;
++}
++
++/* 
++ * Checks whether key is allowed in file.
++ * returns 1 if the key is allowed or 0 otherwise.
++ */
+ int
+ pam_user_key_allowed2(struct passwd *pw, Key *key, char *file)
+ {
+-	char line[SSH_MAX_PUBKEY_BYTES];
+-	int found_key = 0;
+-	FILE *f;
+-	u_long linenum = 0;
+-	struct stat st;
+-	Key *found;
+-	char *fp;
+-
+-	verbose("trying public key file %s", file);
+-
+-	/* Fail not so quietly if file does not exist */
+-	if (stat(file, &st) < 0) {
++    FILE *f;
++    int found_key = 0;
++    struct stat st;
++    char buf[SSH_MAX_PUBKEY_BYTES];
++
++    /* Temporarily use the user's uid. */
++    verbose("trying public key file %s", file);
++
++    /* Fail not so quietly if file does not exist */
++    if(stat(file, &st) < 0) {
+         verbose("File not found: %s", file);
+-		return 0;
+-	}
+-	/* Open the file containing the authorized keys. */
+-	f = fopen(file, "r");
+-	if (!f) {
+-		return 0;
+-	}
+-	if (
+-	    secure_filename(f, file, pw, line, sizeof(line)) != 0) {
+-		fclose(f);
+-		logit("Authentication refused: %s", line);
+-		return 0;
+-	}
+-
+-	found_key = 0;
+-	found = key_new(key->type);
+-
+-	while (read_keyfile_line(f, file, line, sizeof(line), &linenum) != -1) {
+-		char *cp, *key_options = NULL;
+-
+-		/* Skip leading whitespace, empty and comment lines. */
+-		for (cp = line; *cp == ' ' || *cp == '\t'; cp++)
+-			;
+-		if (!*cp || *cp == '\n' || *cp == '#')
+-			continue;
+-
+-		if (key_read(found, &cp) != 1) {
+-			/* no key?  check if there are options for this key */
+-			int quoted = 0;
+-			verbose("user_key_allowed: check options: '%s'", cp);
+-			key_options = cp;
+-			for (; *cp && (quoted || (*cp != ' ' && *cp != '\t')); cp++) {
+-				if (*cp == '\\' && cp[1] == '"')
+-					cp++;	/* Skip both */
+-				else if (*cp == '"')
+-					quoted = !quoted;
+-			}
+-			/* Skip remaining whitespace. */
+-			for (; *cp == ' ' || *cp == '\t'; cp++)
+-				;
+-			if (key_read(found, &cp) != 1) {
+-				verbose("user_key_allowed: advance: '%s'", cp);
+-				/* still no key?  advance to next line*/
+-				continue;
+-			}
+-		}
+-		if (key_equal(found, key)) {
+-			found_key = 1;
+-			logit("matching key found: file %s, line %lu",
+-			    file, linenum);
+-			fp = key_fingerprint(found, SSH_FP_MD5, SSH_FP_HEX);
+-			logit("Found matching %s key: %s",
+-			    key_type(found), fp);
+-			xfree(fp);
+-			break;
+-		}
+-	}
+-	fclose(f);
+-	key_free(found);
+-	if (!found_key)
+-		verbose("key not found");
+-	return found_key;
++        return 0;
++    }
++
++    /* Open the file containing the authorized keys. */
++    f = fopen(file, "r");
++    if(!f) {
++        return 0;
++    }
++
++    if(secure_filename(f, file, pw, buf, sizeof(buf)) != 0) {
++        fclose(f);
++        logit("Authentication refused: %s", buf);
++        return 0;
++    }
++
++    found_key = pamsshagentauth_check_authkeys_file(f, file, key);
++    fclose(f);
++    return found_key;
++}
++
++/* 
++ * Checks whether key is allowed in output of command.
++ * returns 1 if the key is allowed or 0 otherwise.
++ */
++int
++pam_user_key_command_allowed2(char *authorized_keys_command,
++                          char *authorized_keys_command_user,
++                          struct passwd *user_pw, Key * key)
++{
++    FILE *f;
++    int ok, found_key = 0;
++    struct passwd *pw;
++    struct stat st;
++    int status, devnull, p[2], i;
++    pid_t pid;
++    char errmsg[512];
++    char username[512] = { 0 };
++    
++
++
++    if(authorized_keys_command == NULL || authorized_keys_command[0] != '/')
++        return 0;
++
++
++    /* getpwnam of authorized_keys_command_user will overwrite the statics used by getpwnam (including pw_name) */
++    strncpy(username, user_pw->pw_name, sizeof(username) - 1);
++
++    /* If no user specified to run commands the default to target user */
++    if(authorized_keys_command_user == NULL) {
++        pw = user_pw;
++    }
++    else {
++        pw = getpwnam(authorized_keys_command_user);
++        if(pw == NULL) {
++            error("authorized_keys_command_user \"%s\" not found: %s",
++                 authorized_keys_command_user, strerror(errno));
++            return 0;
++        }
++    }
++
++    temporarily_use_uid(pw);
++
++    if(stat(authorized_keys_command, &st) < 0) {
++        error
++            ("Could not stat AuthorizedKeysCommand \"%s\": %s",
++             authorized_keys_command, strerror(errno));
++        goto out;
++    }
++    if(pamsshagentauth_auth_secure_path
++       (authorized_keys_command, &st, NULL, 0, errmsg, sizeof(errmsg)) != 0) {
++        error("Unsafe AuthorizedKeysCommand: %s", errmsg);
++        goto out;
++    }
++
++    /* open the pipe and read the keys */
++    if(pipe(p) != 0) {
++        error("%s: pipe: %s", __func__, strerror(errno));
++        goto out;
++    }
++
++    debug("Running AuthorizedKeysCommand: \"%s\" as \"%s\" with argument: \"%s\"",
++                          authorized_keys_command, pw->pw_name, username);
++
++    /* 
++     * Don't want to call this in the child, where it can fatal() and
++     * run cleanup_exit() code.
++     */
++    restore_uid();
++
++    switch ((pid = fork())) {
++    case -1:                                              /* error */
++        error("%s: fork: %s", __func__, strerror(errno));
++        close(p[0]);
++        close(p[1]);
++        return 0;
++    case 0:                                               /* child */
++        for(i = 0; i < NSIG; i++)
++            signal(i, SIG_DFL);
++
++        /* do this before the setresuid so thta they can be logged */
++        if((devnull = open(_PATH_DEVNULL, O_RDWR)) == -1) {
++            error("%s: open %s: %s", __func__, _PATH_DEVNULL,
++                                     strerror(errno));
++            _exit(1);
++        }
++        if(dup2(devnull, STDIN_FILENO) == -1 || dup2(p[1], STDOUT_FILENO) == -1
++           || dup2(devnull, STDERR_FILENO) == -1) {
++            error("%s: dup2: %s", __func__, strerror(errno));
++            _exit(1);
++        }
++#if defined(HAVE_SETRESGID) && !defined(BROKEN_SETRESGID)
++        if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) != 0) {
++#else
++        if (setgid(pw->pw_gid) != 0 || setegid(pw->pw_gid) != 0) {
++#endif
++            error("setresgid %u: %s", (u_int) pw->pw_gid,
++                                     strerror(errno));
++            _exit(1);
++        }
++
++#ifdef HAVE_SETRESUID
++        if(setresuid(pw->pw_uid, pw->pw_uid, pw->pw_uid) != 0) {
++#else
++        if (setuid(pw->pw_uid) != 0 || seteuid(pw->pw_uid) != 0) {
++#endif
++            error("setresuid %u: %s", (u_int) pw->pw_uid,
++                                     strerror(errno));
++            _exit(1);
++        }
++
++        close(p[0]);
++        closefrom(STDERR_FILENO + 1);
++
++        execl(authorized_keys_command, authorized_keys_command, username, (char *)NULL);
++
++        /* pretty sure this will barf because we are now suid, but since we
++           should't reach this anyway, I'll leave it here */
++        error("AuthorizedKeysCommand %s exec failed: %s",
++                                 authorized_keys_command, strerror(errno));
++        _exit(127);
++    default:                                              /* parent */
++        break;
++    }
++
++    temporarily_use_uid(pw);
++
++    close(p[1]);
++    if((f = fdopen(p[0], "r")) == NULL) {
++        error("%s: fdopen: %s", __func__, strerror(errno));
++        close(p[0]);
++        /* Don't leave zombie child */
++        while(waitpid(pid, NULL, 0) == -1 && errno == EINTR);
++        goto out;
++    }
++    ok = pamsshagentauth_check_authkeys_file(f, authorized_keys_command, key);
++    fclose(f);
++
++    while(waitpid(pid, &status, 0) == -1) {
++        if(errno != EINTR) {
++            error("%s: waitpid: %s", __func__,
++                                     strerror(errno));
++            goto out;
++        }
++    }
++    if(WIFSIGNALED(status)) {
++        error("AuthorizedKeysCommand %s exited on signal %d",
++                                 authorized_keys_command, WTERMSIG(status));
++        goto out;
++    } else if(WEXITSTATUS(status) != 0) {
++        error("AuthorizedKeysCommand %s returned status %d",
++                                 authorized_keys_command, WEXITSTATUS(status));
++        goto out;
++    }
++    found_key = ok;
++  out:
++    restore_uid();
++    return found_key;
+ }
+diff --git a/pam_ssh_agent_auth-0.9.3/pam_user_key_allowed2.h b/pam_ssh_agent_auth-0.9.3/pam_user_key_allowed2.h
+index 416d055..24533a0 100644
+--- a/pam_ssh_agent_auth-0.9.3/pam_user_key_allowed2.h
++++ b/pam_ssh_agent_auth-0.9.3/pam_user_key_allowed2.h
+@@ -32,5 +32,6 @@
+ 
+ #include "identity.h"
+ int pam_user_key_allowed2(struct passwd *, Key *, char *);
++int pam_user_key_command_allowed2(char *, char *, struct passwd *, Key *);
+ 
+ #endif
+diff --git a/pam_ssh_agent_auth-0.9.3/secure_filename.c b/pam_ssh_agent_auth-0.9.3/secure_filename.c
+index c24cab2..d685599 100644
+--- a/pam_ssh_agent_auth-0.9.3/secure_filename.c
++++ b/pam_ssh_agent_auth-0.9.3/secure_filename.c
+@@ -71,29 +71,38 @@
+  * Returns 0 on success and -1 on failure
+  */
+ int
+-secure_filename(FILE *f, const char *file, struct passwd *pw,
+-    char *err, size_t errlen)
++pamsshagentauth_auth_secure_path(const char *name, struct stat *stp,
++        const char *pw_dir, uid_t uid, char *err, size_t errlen)
+ {
+-	uid_t uid = pw->pw_uid;
+ 	char buf[MAXPATHLEN], homedir[MAXPATHLEN];
+ 	char *cp;
+ 	int comparehome = 0;
+ 	struct stat st;
+ 
+-    verbose("secure_filename: checking for uid: %u", uid);
++    verbose("auth_secure_filename: checking for uid: %u", uid);
+ 
+-	if (realpath(file, buf) == NULL) {
+-		snprintf(err, errlen, "realpath %s failed: %s", file,
++	/* if (realpath(pw->pw_dir, homedir) != NULL) */
++    if (realpath(name, buf) == NULL) {
++		snprintf(err, errlen, "realpath %s failed: %s", name,
+ 		    strerror(errno));
+ 		return -1;
+ 	}
+-	if (realpath(pw->pw_dir, homedir) != NULL)
++	if (pw_dir != NULL && realpath(pw_dir, homedir) != NULL)
+ 		comparehome = 1;
+ 
+ 	/* check the open file to avoid races */
+-	if (fstat(fileno(f), &st) < 0 ||
+-	    (st.st_uid != 0 && st.st_uid != uid) ||
+-	    (st.st_mode & 022) != 0) {
++	/* 
++     * if (fstat(fileno(f), &st) < 0 ||
++	 *    (st.st_uid != 0 && st.st_uid != uid) ||
++	 *    (st.st_mode & 022) != 0) {
++    */
++    if (!S_ISREG(stp->st_mode)) {
++        snprintf(err, errlen, "%s is not a regular file", buf);
++        return -1;
++    }
++
++    if ((stp->st_uid != 0 && stp->st_uid != uid) ||
++            (stp->st_mode & 022) != 0) {
+ 		snprintf(err, errlen, "bad ownership or modes for file %s",
+ 		    buf);
+ 		return -1;
+@@ -132,3 +141,25 @@ secure_filename(FILE *f, const char *file, struct passwd *pw,
+ 	return 0;
+ }
+ 
++/*
++ * Version of secure_path() that accepts an open file descriptor to
++ * avoid races.
++ *
++ * Returns 0 on success and -1 on failure
++ */
++int
++secure_filename(FILE *f, const char *file, struct passwd *pw,
++    char *err, size_t errlen)
++{
++   struct stat st;
++   char buf[MAXPATHLEN] = { 0 };
++
++   /* check the open file to avoid races */
++   if (fstat(fileno(f), &st) < 0) {
++       snprintf(err, errlen, "cannot stat file %s: %s",
++           buf, strerror(errno));
++       return -1;
++   }
++   return pamsshagentauth_auth_secure_path(file, &st, pw->pw_dir, pw->pw_uid, err, errlen);
++}
++
+diff --git a/pam_ssh_agent_auth-0.9.3/secure_filename.h b/pam_ssh_agent_auth-0.9.3/secure_filename.h
+index 198c13d..4c1a208 100644
+--- a/pam_ssh_agent_auth-0.9.3/secure_filename.h
++++ b/pam_ssh_agent_auth-0.9.3/secure_filename.h
+@@ -28,5 +28,7 @@
+ #define _SECURE_FILENAME_H
+ #include <pwd.h>
+ #include <stdio.h>
++struct stat;
+ int secure_filename(FILE *, const char *, struct passwd *, char *, size_t);
++int pamsshagentauth_auth_secure_path(const char *, struct stat *, const char *, uid_t, char *, size_t);
+ #endif
+diff --git a/pam_ssh_agent_auth-0.9.3/userauth_pubkey_from_id.c b/pam_ssh_agent_auth-0.9.3/userauth_pubkey_from_id.c
+index 163278b..31849f8 100644
+--- a/pam_ssh_agent_auth-0.9.3/userauth_pubkey_from_id.c
++++ b/pam_ssh_agent_auth-0.9.3/userauth_pubkey_from_id.c
+@@ -48,11 +48,14 @@
+ #include "identity.h"
+ #include "pam_user_authorized_keys.h"
+ 
+-extern u_char  *session_id2;
++#define SSH2_MSG_USERAUTH_TRUST_REQUEST          54
++
++/* extern u_char  *session_id2;
+ extern uint8_t  session_id_len;
++ */
+ 
+ int
+-userauth_pubkey_from_id(Identity * id)
++userauth_pubkey_from_id(const char *ruser, Identity * id, Buffer * session_id2)
+ {
+     Buffer          b = { 0 };
+     char           *pkalg = NULL;
+@@ -63,7 +66,7 @@ userauth_pubkey_from_id(Identity * id)
+     pkalg = (char *) key_ssh_name(id->key);
+ 
+     /* first test if this key is even allowed */
+-    if(! pam_user_key_allowed(id->key))
++    if(! pam_user_key_allowed(ruser, id->key))
+         goto user_auth_clean_exit;
+ 
+     if(key_to_blob(id->key, &pkblob, &blen) == 0)
+@@ -72,10 +75,10 @@ userauth_pubkey_from_id(Identity * id)
+     /* construct packet to sign and test */
+     buffer_init(&b);
+ 
+-    buffer_put_string(&b, session_id2, session_id_len);
+-    buffer_put_char(&b, SSH2_MSG_USERAUTH_REQUEST);
+-    buffer_put_cstring(&b, "root");
+-    buffer_put_cstring(&b, "ssh-userauth");
++    buffer_put_string(&b, session_id2->buf + session_id2->offset, session_id2->end - session_id2->offset);
++    buffer_put_char(&b, SSH2_MSG_USERAUTH_TRUST_REQUEST); 
++    buffer_put_cstring(&b, ruser);
++    buffer_put_cstring(&b, "pam_ssh_agent_auth");
+     buffer_put_cstring(&b, "publickey");
+     buffer_put_char(&b, 1);
+     buffer_put_cstring(&b, pkalg);
+@@ -89,8 +92,7 @@ userauth_pubkey_from_id(Identity * id)
+         authenticated = 1;
+ 
+   user_auth_clean_exit:
+-    if(&b != NULL)
+-        buffer_free(&b);
++    buffer_free(&b);
+     if(sig != NULL)
+         xfree(sig);
+     if(pkblob != NULL)
+diff --git a/pam_ssh_agent_auth-0.9.3/userauth_pubkey_from_id.h b/pam_ssh_agent_auth-0.9.3/userauth_pubkey_from_id.h
+index 1e14231..7758808 100644
+--- a/pam_ssh_agent_auth-0.9.3/userauth_pubkey_from_id.h
++++ b/pam_ssh_agent_auth-0.9.3/userauth_pubkey_from_id.h
+@@ -32,6 +32,6 @@
+ #define _USERAUTH_PUBKEY_FROM_ID_H
+ 
+ #include <identity.h>
+-int userauth_pubkey_from_id(Identity *);
++int userauth_pubkey_from_id(const char *, Identity *, Buffer *);
+ 
+ #endif
+-- 
+2.5.0
+

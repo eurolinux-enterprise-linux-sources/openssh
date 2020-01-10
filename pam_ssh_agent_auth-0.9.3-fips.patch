@@ -1,0 +1,22 @@
+diff pam_ssh_agent_auth-0.9.3/pam_user_key_allowed2.c pam_ssh_agent_auth-0.9.3/pam_user_key_allowed2.c.fips
+index 94e79d3..c6680e4 100644
+--- pam_ssh_agent_auth-0.9.3/pam_user_key_allowed2.c
++++ pam_ssh_agent_auth-0.9.3/pam_user_key_allowed2.c.fips
+@@ -47,6 +47,7 @@
+ #include "secure_filename.h"
+ #include "uidswap.h"
+ #include <unistd.h>
++#include <openssl/crypto.h>
+ 
+ #include "identity.h"
+ 
+@@ -118,7 +119,8 @@ pam_user_key_allowed2(struct passwd *pw, Key *key, char *file)
+             found_key = 1;
+             logit("matching key found: file/command %s, line %lu", file,
+                                   linenum);
+-            fp = key_fingerprint(found, SSH_FP_MD5, SSH_FP_HEX);
++            fp = key_fingerprint(found, FIPS_mode() ? SSH_FP_SHA1 : SSH_FP_MD5,
++                SSH_FP_HEX);
+             logit("Found matching %s key: %s",
+                                   key_type(found), fp);
+             xfree(fp);
