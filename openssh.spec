@@ -69,13 +69,13 @@
 %endif
 
 %define openssh_ver 5.3p1
-%define openssh_rel 118
+%define openssh_rel 122
 %define pam_ssh_agent_ver 0.9.3
 
 Summary: An open source implementation of SSH protocol versions 1 and 2
 Name: openssh
 Version: %{openssh_ver}
-Release: %{openssh_rel}.1%{?dist}%{?rescue_rel}
+Release: %{openssh_rel}%{?dist}%{?rescue_rel}
 URL: http://www.openssh.com/portable.html
 #URL1: http://pamsshauth.sourceforge.net
 #Source0: ftp://ftp.openbsd.org/pub/OpenBSD/OpenSSH/portable/openssh-%{version}.tar.gz
@@ -270,6 +270,20 @@ Patch159: openssh-5.3p1-fallback-x11-untrusted.patch
 Patch161: openssh-5.3p1-CVE-2016-3115.patch
 # ssh-copy-id: SunOS does not understand ~ (#1327547)
 Patch162: openssh-5.3p1-ssh-copy-id-tilde.patch
+# Relax bits needed for hmac-sha2-512 and gss-group1-sha1- (#1353359)
+Patch163: openssh-5.3p1-relax-bits-needed.patch
+# close ControlPersist background process stderr when not in debug mode (#1335539)
+Patch164: openssh-5.3p1-ControlPersist-stderr.patch
+# "The agent has no identities." in ~/.ssh/authorized_keys (#1353410)
+Patch165: openssh-5.3p1-ssh-copy-id-agent.patch
+# Remove RC4 cipher and questionable MACs from the default proposal (#1373836)
+Patch166: openssh-5.3p1-deprecate-insecure-algorithms.patch
+# Prevent infinite loop when Ctrl+Z pressed at password prompt (#1218424)
+Patch167: openssh-5.3p1-prevent-infinite-loop.patch
+# make s390 use /dev/ crypto devices -- ignore closefrom (#1397547)
+Patch168: openssh-5.3p1-s390-closefrom.patch
+# CVE-2015-8325: privilege escalation via user's PAM environment and UseLogin=yes
+Patch169: openssh-5.3p1-CVE-2015-8325.patch
 
 License: BSD
 Group: Applications/Internet
@@ -521,6 +535,13 @@ popd
 %patch159 -p1 -b .untrusted
 %patch161 -p1 -b .xauth
 %patch162 -p1 -b .tilde
+%patch163 -p1 -b .relax-dh
+%patch164 -p1 -b .ControlPersist-stderr
+%patch165 -p1 -b .ssh-copy-id-agent
+%patch166 -p1 -b .insecure
+%patch167 -p1 -b .infinite
+%patch168 -p1 -b .s390
+%patch169 -p1 -b .use-login
 
 autoreconf
 
@@ -804,7 +825,24 @@ fi
 %endif
 
 %changelog
-* Mon Apr 25 2016 Jakub Jelen <jjelen@redhat.com> - 5.3p1-118.1
+* Mon Dec 19 2016 Jakub Jelen <jjelen@redhat.com> - 5.3p1-122
+- Allow to use ibmca crypto hardware (#1397547)
+- CVE-2015-8325: privilege escalation via user's PAM environment and UseLogin=yes (1405374)
+
+* Thu Dec 15 2016 Jakub Jelen <jjelen@redhat.com> - 5.3p1-121
+- Fix missing hmac-md5-96 from server offer (#1373836)
+
+* Wed Nov 02 2016 Jakub Jelen <jjelen@redhat.com> - 5.3p1-120
+- Prevent infinite loop when Ctrl+Z pressed at password prompt (#1218424)
+- Remove RC4 cipher and MD5 based MAC from the default client proposal (#1373836)
+
+* Fri Sep 30 2016 Jakub Jelen <jjelen@redhat.com> - 5.3p1-119
+- Resolve sftp force permission colision with umask (#1341747)
+- Relax bits needed check to allow hmac-sha2-512 with gss-group1-sha1- (#1353359)
+- close ControlPersist background process stderr when not in debug mode (#1335539)
+- Do not add a message "The agent has no identities." in ~/.ssh/authorized_keys (#1353410)
+
+* Mon Apr 25 2016 Jakub Jelen <jjelen@redhat.com> - 5.3p1-118
 - ssh-copy-id: SunOS does not understand ~ (#1327547)
 
 * Tue Mar 15 2016 Jakub Jelen <jjelen@redhat.com> 5.3p1-117
