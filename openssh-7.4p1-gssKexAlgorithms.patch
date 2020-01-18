@@ -240,7 +240,7 @@ diff -up openssh-7.4p1/servconf.c.gsskexalg openssh-7.4p1/servconf.c
  	options->kbd_interactive_authentication = -1;
  	options->challenge_response_authentication = -1;
 @@ -280,6 +281,10 @@ fill_default_server_options(ServerOption
- 		options->gss_strict_acceptor = 0;
+ 		options->gss_strict_acceptor = 1;
  	if (options->gss_store_rekey == -1)
  		options->gss_store_rekey = 0;
 +#ifdef GSSAPI

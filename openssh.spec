@@ -64,7 +64,7 @@
 
 # Do not forget to bump pam_ssh_agent_auth release if you rewind the main package release to 1
 %define openssh_ver 7.4p1
-%define openssh_rel 12
+%define openssh_rel 13
 %define pam_ssh_agent_ver 0.10.3
 %define pam_ssh_agent_rel 1
 
@@ -183,6 +183,9 @@ Patch900: openssh-6.1p1-gssapi-canohost.patch
 Patch901: openssh-7.4p1-kuserok.patch
 # use default_ccache_name from /etc/krb5.conf (#991186)
 Patch902: openssh-6.3p1-krb5-use-default_ccache_name.patch
+# Change GSSAPIStrictAcceptor to yes as it ever was (#1488982)
+Patch903: openssh-7.4p1-gss-strict-acceptor.patch
+
 # Run ssh-copy-id in the legacy mode when SSH_COPY_ID_LEGACY variable is set (#969375
 Patch905: openssh-7.4p1-legacy-ssh-copy-id.patch
 # Use tty allocation for a remote scp (#985650)
@@ -457,6 +460,8 @@ popd
 %patch900 -p1 -b .canohost
 %patch901 -p1 -b .kuserok
 %patch902 -p1 -b .ccache_name
+%patch903 -p1 -b .gss-strict
+
 %patch905 -p1 -b .legacy-ssh-copy-id
 %patch906 -p1 -b .fromto-remote
 %patch914 -p1 -b .log-sftp-only
@@ -812,6 +817,9 @@ getent passwd sshd >/dev/null || \
 %endif
 
 %changelog
+* Wed Sep 13 2017 Jakub Jelen <jjelen@redhat.com> - 7.4p1-13 + 0.10.3-1
+- Revert default of GSSAPIStrictAcceptorCheck=no back to yes (#1488982)
+
 * Mon Aug 07 2017 Jakub Jelen <jjelen@redhat.com> - 7.4p1-12 + 0.10.3-1
 - Revert upstream change to UseDNS=no back to yes (#1478175)
 
