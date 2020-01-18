@@ -64,7 +64,7 @@
 
 # Do not forget to bump pam_ssh_agent_auth release if you rewind the main package release to 1
 %define openssh_ver 7.4p1
-%define openssh_rel 16
+%define openssh_rel 21
 %define pam_ssh_agent_ver 0.10.3
 %define pam_ssh_agent_rel 2
 
@@ -250,6 +250,10 @@ Patch958: openssh-7.4p1-winscp-compat.patch
 Patch959: openssh-7.4p1-authorized_keys_command.patch
 # Fix for CVE-2017-15906 (#1517226)
 Patch960: openssh-7.5p1-sftp-empty-files.patch
+# Fix for CVE-2018-15473 (#1619079)
+Patch961: openssh-7.4p1-CVE-2018-15473.patch
+# invalidate supplemental group cache used by temporarily_use_uid() (#1619079)
+Patch962: openssh-7.4p1-uidswap.patch
 
 License: BSD
 Group: Applications/Internet
@@ -504,6 +508,8 @@ popd
 %patch958 -p1 -b .winscp
 %patch959 -p1 -b .large-command
 %patch960 -p1 -b .sftp-empty
+%patch961 -p1 -b .CVE-2018-15473
+%patch962 -p1 -b .uidswap
 
 %patch200 -p1 -b .audit
 %patch202 -p1 -b .audit-race
@@ -829,6 +835,23 @@ getent passwd sshd >/dev/null || \
 %endif
 
 %changelog
+* Tue Jun 25 2019 Jakub Jelen <jjelen@redhat.com> - 7.4p1-21 + 0.10.3-2
+- Avoid double comma in the default cipher list in FIPS mode (#1722446)
+
+* Tue May 21 2019 Jakub Jelen <jjelen@redhat.com> - 7.4p1-20 + 0.10.3-2
+- Revert the updating of cached passwd structure (#1712053)
+
+* Mon Mar 04 2019 Jakub Jelen <jjelen@redhat.com> - 7.4p1-19 + 0.10.3-2
+- Update cached passwd structure after PAM authentication (#1674541)
+
+* Wed Feb 13 2019 Jakub Jelen <jjelen@redhat.com> - 7.4p1-18 + 0.10.3-2
+- invalidate supplemental group cache used by temporarily_use_uid()
+  when the target uid differs (#1583735)
+
+* Mon Jan 14 2019 Jakub Jelen <jjelen@redhat.com> - 7.4p1-17 + 0.10.3-2
+- Fix for CVE-2018-15473 (#1619079)
+- Enable GCM mode for AES ciphers in FIPS mode (#1600869)
+
 * Fri Nov 24 2017 Jakub Jelen <jjelen@redhat.com> - 7.4p1-16 + 0.10.3-2
 - Fix for CVE-2017-15906 (#1517226)
 
