@@ -64,7 +64,7 @@
 
 # Do not forget to bump pam_ssh_agent_auth release if you rewind the main package release to 1
 %define openssh_ver 7.4p1
-%define openssh_rel 11
+%define openssh_rel 12
 %define pam_ssh_agent_ver 0.10.3
 %define pam_ssh_agent_rel 1
 
@@ -237,6 +237,8 @@ Patch953: openssh-7.4p1-sandbox-ppc64le.patch
 Patch954: openssh-7.4p1-ControlPath_too_long.patch
 # sandbox-seccomp for ibmca engine from upstream (#1451809)
 Patch955: openssh-7.4p1-sandbox-ibmca.patch
+# Back to UseDNS=yes by default (#1478175)
+Patch956: openssh-7.4p1-usedns-yes.patch
 
 License: BSD
 Group: Applications/Internet
@@ -484,6 +486,7 @@ popd
 %patch953 -p1 -b .seccomp
 %patch954 -p1 -b .ControlPath
 %patch955 -p1 -b .ibmca
+%patch956 -p1 -b .usedns
 
 %patch200 -p1 -b .audit
 %patch202 -p1 -b .audit-race
@@ -809,6 +812,9 @@ getent passwd sshd >/dev/null || \
 %endif
 
 %changelog
+* Mon Aug 07 2017 Jakub Jelen <jjelen@redhat.com> - 7.4p1-12 + 0.10.3-1
+- Revert upstream change to UseDNS=no back to yes (#1478175)
+
 * Mon May 22 2017 Jakub Jelen <jjelen@redhat.com> - 7.4p1-11 + 0.10.3-1
 - Compiler warnings (#1341754)
 
