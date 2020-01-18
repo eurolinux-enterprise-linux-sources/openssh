@@ -633,7 +633,7 @@ diff -up openssh-7.4p1/pam_ssh_agent_auth-0.10.3/userauth_pubkey_from_id.c.psaa-
  /* extern u_char  *session_id2;
  extern uint8_t  session_id_len;
   */
-@@ -58,7 +60,8 @@ userauth_pubkey_from_id(const char *ruse
+@@ -58,40 +60,41 @@ userauth_pubkey_from_id(const char *ruse
      Buffer          b = { 0 };
      char           *pkalg = NULL;
      u_char         *pkblob = NULL, *sig = NULL;
@@ -643,7 +643,11 @@ diff -up openssh-7.4p1/pam_ssh_agent_auth-0.10.3/userauth_pubkey_from_id.c.psaa-
      int             authenticated = 0;
  
      pkalg = (char *) key_ssh_name(id->key);
-@@ -67,31 +70,31 @@ userauth_pubkey_from_id(const char *ruse
+ 
++    /* construct packet to sign and test */
++    buffer_init(&b);
++
+     /* first test if this key is even allowed */
      if(! pam_user_key_allowed(ruser, id->key))
          goto user_auth_clean_exit;
  
@@ -651,10 +655,9 @@ diff -up openssh-7.4p1/pam_ssh_agent_auth-0.10.3/userauth_pubkey_from_id.c.psaa-
 +    if(key_to_blob(id->key, &pkblob, &blen) == 0)
          goto user_auth_clean_exit;
  
-     /* construct packet to sign and test */
+-    /* construct packet to sign and test */
 -    pamsshagentauth_buffer_init(&b);
-+    buffer_init(&b);
- 
+-
 -    pamsshagentauth_buffer_put_string(&b, session_id2->buf + session_id2->offset, session_id2->end - session_id2->offset);
 -    pamsshagentauth_buffer_put_char(&b, SSH2_MSG_USERAUTH_TRUST_REQUEST); 
 -    pamsshagentauth_buffer_put_cstring(&b, ruser);

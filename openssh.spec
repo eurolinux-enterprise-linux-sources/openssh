@@ -64,9 +64,9 @@
 
 # Do not forget to bump pam_ssh_agent_auth release if you rewind the main package release to 1
 %define openssh_ver 7.4p1
-%define openssh_rel 13
+%define openssh_rel 16
 %define pam_ssh_agent_ver 0.10.3
-%define pam_ssh_agent_rel 1
+%define pam_ssh_agent_rel 2
 
 Summary: An open source implementation of SSH protocol versions 1 and 2
 Name: openssh
@@ -242,6 +242,14 @@ Patch954: openssh-7.4p1-ControlPath_too_long.patch
 Patch955: openssh-7.4p1-sandbox-ibmca.patch
 # Back to UseDNS=yes by default (#1478175)
 Patch956: openssh-7.4p1-usedns-yes.patch
+# Clatch between ClientAlive timeouts and rekeying (#1480510)
+Patch957: openssh-7.4p1-rekeying-timeouts.patch
+# WinSCP 5.10+ compatibility (#1496808)
+Patch958: openssh-7.4p1-winscp-compat.patch
+# SSH AuthorizedKeysCommand hangs when output is too large (#1496467)
+Patch959: openssh-7.4p1-authorized_keys_command.patch
+# Fix for CVE-2017-15906 (#1517226)
+Patch960: openssh-7.5p1-sftp-empty-files.patch
 
 License: BSD
 Group: Applications/Internet
@@ -492,6 +500,10 @@ popd
 %patch954 -p1 -b .ControlPath
 %patch955 -p1 -b .ibmca
 %patch956 -p1 -b .usedns
+%patch957 -p1 -b .rekey-timeout
+%patch958 -p1 -b .winscp
+%patch959 -p1 -b .large-command
+%patch960 -p1 -b .sftp-empty
 
 %patch200 -p1 -b .audit
 %patch202 -p1 -b .audit-race
@@ -817,6 +829,21 @@ getent passwd sshd >/dev/null || \
 %endif
 
 %changelog
+* Fri Nov 24 2017 Jakub Jelen <jjelen@redhat.com> - 7.4p1-16 + 0.10.3-2
+- Fix for CVE-2017-15906 (#1517226)
+
+* Mon Nov 06 2017 Jakub Jelen <jjelen@redhat.com> - 7.4p1-15 + 0.10.3-2
+- Do not hang if SSH AuthorizedKeysCommand output is too large (#1496467)
+- Do not segfault pam_ssh_agent_auth if keyfile is missing (#1494268)
+- Do not segfault in audit code during cleanup (#1488083)
+- Add WinSCP 5.10+ compatibility (#1496808)
+- Clatch between ClientAlive and rekeying timeouts (#1480510)
+- Exclude dsa and ed25519 from default proposed keys in FIPS mode (#1456853)
+- Add enablement for openssl-ibmca and openssl-ibmpkcs11 (#1478035)
+
+* Fri Nov  3 2017 Nikos Mavrogiannopoulos <nmav@redhat.com> - 7.4p1-14 + 0.10.3-2
+- Rebuilt for RHEL-7.5
+
 * Wed Sep 13 2017 Jakub Jelen <jjelen@redhat.com> - 7.4p1-13 + 0.10.3-1
 - Revert default of GSSAPIStrictAcceptorCheck=no back to yes (#1488982)
 
